@@ -1,0 +1,22 @@
+Batch run: 2026-08-11T18:55:02.886559
+
+=== Batch 판정 결과 ===
+size_5_1: decision=UNDECIDED, expected=x, FAIL
+size_5_2: decision=cross, expected=+, PASS
+size_13_1: decision=x, expected=x, PASS
+size_13_2: decision=UNDECIDED, expected=+, FAIL
+size_25_1: decision=UNDECIDED, expected=x, FAIL
+size_25_2: decision=cross, expected=+, PASS
+
+=== 성능 분석 (평균) ===
+Size	Ops(N^2)	Avg time (ms)	Samples
+5	25	0.001857	4
+13	169	0.007729	4
+25	625	0.024809	4
+
+=== 리포트 요약 ===
+전체 케이스: 6, PASS: 3, FAIL: 3
+실패 케이스 목록:
+ - size_5_1: expected=x, decision=UNDECIDED, s_cross=0.900000, s_x=0.900000
+ - size_13_2: expected=+, decision=UNDECIDED, s_cross=7.500000, s_x=7.500000
+ - size_25_1: expected=x, decision=UNDECIDED, s_cross=4.900000, s_x=4.900000
