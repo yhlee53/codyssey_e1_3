@@ -27,6 +27,6 @@ NumPy 활용: 위 코드에서 np.sum(f * p)를 사용한 이유는 파이썬의
 부동소수점 비교: 실무에서는 score_a == score_b 대신 abs(score_a - score_b) < 1e-9와 같이 아주 작은 오차 범위를 두고 비교하는 것이 안전합니다.
 확장성: 현재는 2D 패턴 매칭이지만, 이 원리를 3D로 확장하고 여러 층을 쌓으면 현대 인공지능의 핵심인 **CNN(Convolutional Neural Network)**의 기초가 됩니다!
 
-![gemini_output_1](../gemini_output_1.png)
+![gemini_output_1](attach/gemini_output_1.png)
 
-![gemini_output_2](../gemini_output_2.png)
+![gemini_output_2](attach/gemini_output_2.png)
