@@ -183,7 +183,7 @@ def main():
     print("1. 사용자 입력 (3x3)")
     print("2. data.json 분석")
     
-    choice = input("선택: ")
+    choice = input("\n선택: ")
     
     perf_3x3 = None
     if choice == '1':
