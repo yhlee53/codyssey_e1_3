@@ -177,12 +177,66 @@ def run_mode_2(data):
 
     return pass_count, fail_count, fail_cases, perf_data
 
+def generate_patterns(n):
+    """
+    N x N 크기의 Cross와 X 패턴을 생성
+    """
+    # 0.0으로 초기화된 N x N 행렬 생성
+    cross_matrix = [[0.0 for _ in range(n)] for _ in range(n)]
+    x_matrix = [[0.0 for _ in range(n)] for _ in range(n)]
+    
+    mid = n // 2
+    for r in range(n):
+        for c in range(n):
+            # 십자가 로직: 중앙 행 또는 중앙 열
+            if r == mid or c == mid:
+                cross_matrix[r][c] = 1.0
+            
+            # X 로직: 주 대각선 또는 부 대각선
+            if r == c or (r + c) == (n - 1):
+                x_matrix[r][c] = 1.0
+                
+    return cross_matrix, x_matrix
+
+def run_mode_3():
+    print("\n#---------------------------------------")
+    print("# [3] 패턴 자동 생성 및 성능 분석")
+    print("#---------------------------------------")
+    try:
+        n = int(input("생성할 패턴의 크기 N을 입력하세요 (예: 5, 13, 25, 100): "))
+        if n <= 0: raise ValueError
+    except ValueError:
+        print("올바른 양의 정수를 입력하세요.")
+        return
+
+    cross_p, x_p = generate_patterns(n)
+    
+    # 생성된 패턴 확인 (작은 크기일 때만 출력)
+    if n <= 10:
+        print(f"\n[생성된 {n}x{n} Cross 패턴]")
+        for row in cross_p: print(row)
+        print(f"\n[생성된 {n}x{n} X 패턴]")
+        for row in x_p: print(row)
+    else:
+        print(f"\n{n}x{n} 패턴 생성 완료 (크기가 커서 출력은 생략합니다.)")
+
+    # 성능 측정 (생성된 패턴을 필터이자 패턴으로 가정하여 연산)
+    avg_t = measure_performance(cross_p, x_p, n)
+    
+    print("\n[성능 결과]")
+    print(f"크기: {n}x{n}")
+    print(f"연산 횟수: {n*n}회")
+    print(f"평균 실행 시간: {avg_t:.6f} ms")
+    
+    return {"size": f"{n}x{n}", "time": avg_t, "ops": n*n}
+
 def main():
     print("\n\n\n=== Mini NPU Simulator ===")
     print("\n[모드 선택]")
     print("1. 사용자 입력 (3x3)")
     print("2. data.json 분석")
-    
+    print("3. 패턴 자동 생성 및 성능 테스트") # 추가    
+
     choice = input("\n선택: ")
     
     perf_3x3 = None
@@ -191,14 +245,14 @@ def main():
     
     # 모드 2는 항상 실행하거나 선택적으로 실행 가능 (요구사항에 따라 흐름 구성)
     # 여기서는 요구사항의 '실행 흐름'에 따라 순차적으로 진행할 수 있도록 구성합니다.
-    try:
-        with open('data.json', 'r') as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        print("data.json 파일을 찾을 수 없습니다.")
-        return
+    elif choice == '2':
+        try:
+            with open('data.json', 'r') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            print("data.json 파일을 찾을 수 없습니다.")
+            return
 
-    if choice == '2':
         pass_c, fail_c, fail_list, perf_list = run_mode_2(data)
         
         # 성능 분석 표 출력
@@ -226,6 +280,8 @@ def main():
             for case in fail_list:
                 print(f"- {case}")
         print("\n\n")
+    elif choice == '3':
+        run_mode_3() # 추가
 
 if __name__ == "__main__":
     main()
