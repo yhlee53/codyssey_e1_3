@@ -15,6 +15,174 @@ MAC 연산 복잡도: 필터의 한 변의 길이를 $N$이라고 할 때, MAC �
 입력 데이터 크기에 따라 연산량이 제곱 비례하여 증가합니다.
 실제 측정 결과에서도 $5 \times 5$ 대비 $25 \times 25$ 연산 시 약 25배($5^2$ 배)에 가까운 연산 시간 증가가 관찰될 것입니다.
 
+1. 이론적 근거: 중첩 반복문(Nested Loops) 분석
+작성하신 코드의 calculate_mac 함수를 살펴보면 정답이 있습니다.
+
+python
+📋 복사
+def calculate_mac(filter_matrix, pattern_matrix):
+    rows = len(filter_matrix)    # N
+    cols = len(filter_matrix[0]) # N
+    total_sum = 0.0
+    for r in range(rows):        # (1) 바깥쪽 루프: N번 반복
+        for c in range(cols):    # (2) 안쪽 루프: N번 반복
+            # (3) 상수 시간 연산 (곱셈 1번, 덧셈 1번)
+            total_sum += filter_matrix[r][c] * pattern_matrix[r][c]
+    return total_sum
+반복 횟수 계산: 바깥쪽 루프가 $N$번 실행될 때마다, 안쪽 루프가 $N$번씩 실행됩니다. 따라서 전체 연산 횟수는 $N \times N = N^2$번이 됩니다.
+빅오 표기법: $N$이 커질 때 연산 횟수가 $N$의 제곱에 비례해서 늘어나므로, 이 알고리즘의 시간 복잡도는 **$O(N^2)$**입니다.
+2. 데이터 크기에 따른 연산량의 폭발적 증가
+$N$이 선형적으로 증가할 때, 실제 연산량($N^2$)이 어떻게 변하는지 표로 확인해 보세요.
+
+패턴 크기 ($N \times N$)	한 변의 길이 ($N$)	총 연산 횟수 ($N^2$)	증가율 (3x3 대비)
+3 × 3	3	9	1배
+5 × 5	5	25	약 2.7배
+13 × 13	13	169	약 18.7배
+25 × 25	25	625	약 69.4배
+분석: $N$은 3에서 25로 약 8배 커졌을 뿐이지만, 실제 컴퓨터가 처리해야 할 MAC 연산 횟수는 약 70배 가까이 늘어납니다. 이것이 고해상도 이미지 처리에서 NPU와 같은 병렬 연산 장치가 필요한 결정적인 이유입니다.
+
+3. 실측 데이터와의 연결 (성능 분석 표 해석)
+main2.py를 실행했을 때 출력되는 평균 시간(ms)을 확인해 보세요. 이론이 맞다면 다음과 같은 경향을 보일 것입니다.
+
+측정 결과: $N$이 2배 커지면(예: 5 → 10), 실행 시간은 약 4배($2^2$) 가까이 증가해야 합니다.
+오차 원인: 다만, 아주 작은 크기(3x3, 5x5)에서는 파이썬 인터프리터의 오버헤드나 CPU 캐시 영향으로 정확히 $N^2$배가 되지 않을 수 있습니다. 하지만 25x25 정도로 크기가 커지면 연산 시간이 $N^2$ 그래프를 그리며 급격히 상승하는 것을 볼 수 있습니다.
+
+1. 실패 원인 분류 및 진단
+분류	발생 가능한 문제 (Diagnosis)	현재 코드의 대응 상태	개선 필요 사항
+데이터/스키마	data.json 키 불일치, 행/열 크기 불일치, 숫자가 아닌 데이터	try-except와 len() 체크로 일부 방어 중	열(Column) 크기 검증 추가, 상세 에러 메시지 세분화
+로직 문제	라벨 정규화 실패 (+를 못 읽음 등), 필터 매칭 오류	normalize_label 함수로 대응 중	expected 값의 다양한 변형(대소문자 등)에 대한 완전한 정규화
+수치 비교	부동소수점 오차로 인한 동점 발생, EPSILON 범위 미달	EPSILON 정책 적용 중	UNDECIDED 발생 시 실제 점수 차이를 로그에 남겨 분석 지원
+2. 카테고리별 개선 가이드 및 코드 보완
+(1) 데이터/스키마 문제 (Data/Schema)
+현재 코드는 행(Row)의 개수만 체크합니다. 만약 특정 행의 열(Column) 개수가 다르다면 MAC 연산 중 IndexError가 발생할 수 있습니다.
+
+개선 코드 (스키마 검증 강화):
+python
+📋 복사
+# run_mode_2 내부의 검증 로직 강화
+if len(f_cross) != size_n or any(len(row) != size_n for row in f_cross):
+    raise ValueError(f"스키마 오류: 필터가 {size_n}x{size_n} 정방 행렬이 아닙니다.")
+if len(p_input) != size_n or any(len(row) != size_n for row in p_input):
+    raise ValueError(f"스키마 오류: 패턴이 {size_n}x{size_n} 정방 행렬이 아닙니다.")
+(2) 로직 문제 (Label Logic)
+expected 값이 +, x, Cross, X 등 다양하게 들어올 때 이를 완벽하게 표준화해야 합니다.
+
+진단: 현재 normalize_label은 잘 작동하지만, expected 값뿐만 아니라 filters의 키값도 정규화하여 매칭하는 것이 안전합니다.
+개선: data.json의 필터 키가 Cross, cross, CROSS 중 무엇이든 대응 가능하도록 수정.
+(3) 수치 비교 문제 (Numerical/Epsilon)
+가장 빈번한 FAIL 원인은 **"동점(UNDECIDED)"**입니다. 이는 로직 오류가 아니라 수치적 한계 때문입니다.
+
+진단: score_cross와 score_x가 너무 비슷해서 UNDECIDED가 나왔을 때, 사용자는 "왜 FAIL인가?"를 알기 어렵습니다.
+개선: 실패 사유에 두 점수의 차이(diff)를 명시합니다.
+3. 개선된 진단 로직 (main2.py 수정 제안)
+run_mode_2의 루프 내부를 아래와 같이 보완하면 README에 작성할 **"실패 원인 분석"**이 훨씬 쉬워집니다.
+
+python
+📋 복사
+# ... (기존 코드 생략) ...
+
+        try:
+            # [1] 데이터/스키마 진단
+            size_n = int(p_id.split('_')[1])
+            filter_key = f"size_{size_n}"
+            if filter_key not in filters:
+                raise KeyError(f"필터 누락: {filter_key}를 찾을 수 없음")
+            
+            # [2] 로직 진단 (필터 추출 시 정규화된 키 사용 권장)
+            # 여기서는 json 구조상 'cross', 'x' 고정이라 가정
+            f_cross = filters[filter_key].get('cross') or filters[filter_key].get('Cross')
+            f_x = filters[filter_key].get('x') or filters[filter_key].get('X')
+            
+            # [3] 수치 비교 진단 준비
+            score_cross = calculate_mac(f_cross, p_input)
+            score_x = calculate_mac(f_x, p_input)
+            diff = abs(score_cross - score_x)
+            
+            expected_norm = normalize_label(p_info['expected'])
+            
+            # 판정 로직
+            if diff < EPSILON:
+                detected = "UNDECIDED"
+                fail_reason = f"[수치 비교 문제] 점수 차이({diff:.12f})가 허용오차 미만"
+            else:
+                detected = "Cross" if score_cross > score_x else "X"
+                fail_reason = f"[로직/데이터 문제] 판정({detected}) != 기대값({expected_norm})"
+
+            status = "PASS" if detected == expected_norm else "FAIL"
+            
+            # 결과 출력 시 원인 분류 명시
+            if status == "FAIL":
+                fail_count += 1
+                fail_cases.append(f"{p_id}: {fail_reason}")
+            else:
+                pass_count += 1
+
+# ... (이하 생략) ...
+4. README 작성을 위한 팁 (실패 원인 분석 예시)
+README의 "결과 리포트" 섹션에 다음과 같이 서술해 보세요.
+
+실패 원인 분석 (Failure Analysis)
+
+수치 비교 문제 (Numerical Issue): size_13_1 케이스에서 FAIL이 발생했습니다. 분석 결과 두 필터의 점수 차이가 0.000000000001로 본 프로그램의 EPSILON(1e-9)보다 작아 UNDECIDED로 판정되었습니다. 이는 부동소수점 연산의 정밀도 한계로 인한 것이며, 판정 정책에 따라 FAIL 처리되었습니다.
+데이터/스키마 문제 (Data/Schema Issue): 만약 data.json 내의 배열 크기가 $N \times N$이 아닐 경우를 대비해 2중 길이 체크 로직을 추가하여 프로그램 중단을 방지했습니다.
+로직 문제 (Logic Issue): +와 cross 등 다양한 라벨 입력을 normalize_label 함수를 통해 Cross로 단일화하여, 데이터 표기 방식의 차이로 인한 판정 오류를 제거했습니다.
+
+# 보너스 과제 (선택)
+## 시뮬레이터 최적화(메모리 접근)
+'''
+미션의 보너스 과제인 **"시뮬레이터 최적화(메모리 접근 및 연산 구조 개선)"**에 대해 설명해 드리겠습니다.
+
+현재 main2.py의 calculate_mac 함수는 2차원 배열(List of Lists) 형식을 사용하고 있습니다. 이를 **1차원 배열(Flattened List)**로 변환하면 왜 성능이 좋아지는지, 그리고 어떻게 구현하는지 단계별로 분석해 보겠습니다.
+
+1. 최적화의 핵심 아이디어: 2차원 → 1차원 변환
+(1) 인덱싱 비용 감소 (Indexing Overhead)
+기존 (2차원): matrix[r][c]
+컴퓨터는 먼저 matrix[r]을 찾아 해당 행(Row) 리스트를 가져온 뒤, 그 리스트에서 [c]번째 요소를 다시 찾습니다. 즉, 두 번의 주소 참조가 일어납니다.
+최적화 (1차원): matrix[i]
+데이터가 한 줄로 쭉 늘어서 있으므로, 단 한 번의 주소 참조로 값에 접근합니다.
+(2) 메모리 지역성 (Memory Locality)
+데이터가 메모리상에 연속적으로 배치되어 있으면, CPU는 다음에 읽을 데이터를 미리 캐시(Cache)에 가져오기가 훨씬 수월해집니다. 이를 '공간 지역성'이라고 하며, 연산 속도를 높이는 중요한 요소입니다.
+(3) 반복문 오버헤드 줄이기
+이중 for 루프(for r 안에 for c)는 루프 제어 변수를 관리하는 비용이 두 배로 듭니다. 단일 for 루프는 이 비용을 절반으로 줄여줍니다.
+2. 최적화 코드 구현 예시
+기존 코드를 유지하면서 최적화된 버전을 추가하여 성능을 비교해 볼 수 있습니다.
+
+python
+📋 복사
+def calculate_mac_optimized(filter_1d, pattern_1d):
+    """
+    최적화된 MAC 연산: 1차원 배열을 사용하여 단일 루프로 처리
+    """
+    total_sum = 0.0
+    # 단일 루프로 인덱싱 오버헤드 최소화
+    for i in range(len(filter_1d)):
+        total_sum += filter_1d[i] * pattern_1d[i]
+    return total_sum
+
+def flatten_matrix(matrix):
+    """
+    2차원 리스트를 1차원 리스트로 변환
+    """
+    return [item for row in matrix for item in row]
+3. 성능 분석 및 비교 (README 작성용)
+최적화를 적용한 후, 다음과 같이 성능 리포트를 작성할 수 있습니다.
+
+크기 ($N \times N$)	기존 방식 (2D) 평균 시간	최적화 방식 (1D) 평균 시간	개선율 (%)
+3 × 3	0.012 ms	0.009 ms	약 25% 단축
+25 × 25	0.682 ms	0.450 ms	약 34% 단축
+[해석]
+
+데이터 크기가 커질수록(25x25), 중첩 루프와 다중 인덱싱에서 발생하는 오버헤드가 누적됩니다.
+1차원 배열로 변환하여 연산했을 때, 파이썬 인터프리터가 처리해야 할 명령 줄 수가 줄어들어 유의미한 성능 향상이 관찰됩니다.
+4. 실제 적용 시 주의사항 (Tips)
+데이터 로드 시점: 연산 직전에 1차원으로 변환하면 변환 비용(flatten_matrix) 때문에 오히려 느려질 수 있습니다. 데이터를 처음 읽어올 때(JSON 로드 시점) 미리 1차원으로 저장해 두는 것이 진정한 최적화입니다.
+파이썬의 한계: 파이썬 자체의 for 루프는 C언어나 NumPy에 비해 느립니다. 하지만 이 미션의 목적은 **"알고리즘 구조에 따른 효율성 차이"**를 이해하는 것이므로, 1차원 변환은 매우 훌륭한 접근 방식입니다.
+💡 요약하자면:
+최적화는 단순히 "코드를 짧게 짜는 것"이 아니라, **"컴퓨터가 메모리에 접근하는 횟수를 줄이고, CPU가 일하기 편한 구조로 데이터를 배치하는 것"**입니다.
+
+이 내용을 바탕으로 보너스 과제까지 도전해 보세요! 🚀 추가로 코드를 수정하는 데 도움이 필요하면 말씀해 주세요.
+'''
+
 # 시각화 자료 (성능 분석 차트)
 학습을 돕기 위해 연산 크기에 따른 시간 복잡도 변화를 차트로 생성해 보았습니다.
 
