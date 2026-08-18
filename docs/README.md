@@ -143,14 +143,17 @@
                 pass_count += 1
 
 #### ... (이하 생략) ...
-4. README 작성을 위한 팁 (실패 원인 분석 예시)
-README의 "결과 리포트" 섹션에 다음과 같이 서술해 보세요.
 
-실패 원인 분석 (Failure Analysis)
+4) 실패 원인 분석 (Failure Analysis)
 
-수치 비교 문제 (Numerical Issue): size_13_1 케이스에서 FAIL이 발생했습니다. 분석 결과 두 필터의 점수 차이가 0.000000000001로 본 프로그램의 EPSILON(1e-9)보다 작아 UNDECIDED로 판정되었습니다. 이는 부동소수점 연산의 정밀도 한계로 인한 것이며, 판정 정책에 따라 FAIL 처리되었습니다.
-데이터/스키마 문제 (Data/Schema Issue): 만약 data.json 내의 배열 크기가 $N \times N$이 아닐 경우를 대비해 2중 길이 체크 로직을 추가하여 프로그램 중단을 방지했습니다.
-로직 문제 (Logic Issue): +와 cross 등 다양한 라벨 입력을 normalize_label 함수를 통해 Cross로 단일화하여, 데이터 표기 방식의 차이로 인한 판정 오류를 제거했습니다.
+    수치 비교 문제 (Numerical Issue): size_13_1 케이스에서 FAIL이 발생했습니다. 
+        분석 결과 두 필터의 점수 차이가 0.000000000001로 본 프로그램의 EPSILON(1e-9)보다 작아 UNDECIDED로 판정되었습니다. 이는 부동소수점 연산의 정밀도 한계로 인한 것이며, 판정 정책에 따라 FAIL 처리되었습니다.
+    
+    데이터/스키마 문제 (Data/Schema Issue): 만약 data.json 내의 배열 크기가 $N \times N$이 아닐 경우를 
+        대비해 2중 길이 체크 로직을 추가하여 프로그램 중단을 방지했습니다.
+    
+    로직 문제 (Logic Issue): +와 cross 등 다양한 라벨 입력을 normalize_label 함수를 통해 Cross로 단일화하여, 
+        데이터 표기 방식의 차이로 인한 판정 오류를 제거했습니다.
 
 # 보너스 과제 (선택)
 ## 1. 시뮬레이터 최적화(메모리 접근)
