@@ -1,5 +1,7 @@
 import json
 import time
+# 파일 상단에 import 추가
+from read import load_json_data
 
 # [설정] 부동소수점 비교를 위한 허용 오차
 EPSILON = 1e-9
@@ -63,6 +65,22 @@ def measure_performance(f, p, size_n, iterations=10):
     end_time = time.perf_counter()
     avg_time_ms = ((end_time - start_time) / iterations) * 1000
     return avg_time_ms
+
+def calculate_mac_optimized(filter_1d, pattern_1d):
+    """
+    최적화된 MAC 연산: 1차원 배열을 사용하여 단일 루프로 처리
+    """
+    total_sum = 0.0
+    # 단일 루프로 인덱싱 오버헤드 최소화
+    for i in range(len(filter_1d)):
+        total_sum += filter_1d[i] * pattern_1d[i]
+    return total_sum
+
+def flatten_matrix(matrix):
+    """
+    2차원 리스트를 1차원 리스트로 변환
+    """
+    return [item for row in matrix for item in row]
 
 def run_mode_1():
     print("\n#----------------------------------------")
@@ -230,12 +248,60 @@ def run_mode_3():
     
     return {"size": f"{n}x{n}", "time": avg_t, "ops": n*n}
 
+def run_mode_4():
+    print("\n#---------------------------------------")
+    print("# [4] MAC 연산 최적화 성능 비교 (2D vs 1D)")
+    print("#---------------------------------------")
+    try:
+        n = int(input("비교할 패턴의 크기 N을 입력하세요 (예: 100, 200, 500): "))
+        if n <= 0: raise ValueError
+    except ValueError:
+        print("올바른 양의 정수를 입력하세요.")
+        return
+
+    # 1. 데이터 준비 (2차원 및 1차원)
+    cross_2d, x_2d = generate_patterns(n)
+    cross_1d = flatten_matrix(cross_2d)
+    x_1d = flatten_matrix(x_2d)
+
+    print(f"\n[실험 환경] 크기: {n}x{n} | 총 원소 수: {n*n}개")
+    print("측정 중... (각 방식 10회 반복 평균)")
+
+    # 2. 기존 방식 (2D) 성능 측정
+    start_2d = time.perf_counter()
+    for _ in range(10):
+        calculate_mac(cross_2d, x_2d)
+    end_2d = time.perf_counter()
+    avg_2d = ((end_2d - start_2d) / 10) * 1000
+
+    # 3. 최적화 방식 (1D) 성능 측정
+    start_1d = time.perf_counter()
+    for _ in range(10):
+        calculate_mac_optimized(cross_1d, x_1d)
+    end_1d = time.perf_counter()
+    avg_1d = ((end_1d - start_1d) / 10) * 1000
+
+    # 4. 결과 출력
+    print("\n#---------------------------------------")
+    print(f"{'연산 방식':<20} | {'평균 실행 시간(ms)':<20}")
+    print("-" * 45)
+    print(f"{'기존 방식 (2D Loop)':<20} | {avg_2d:<20.6f} ms")
+    print(f"{'최적화 방식 (1D Loop)':<20} | {avg_1d:<20.6f} ms")
+    print("-" * 45)
+
+    if avg_1d > 0:
+        speedup = avg_2d / avg_1d
+        print(f"성능 향상: 약 {speedup:.2f}배 빨라짐")
+    
+    print("\n* 1D 방식이 빠른 이유: 중첩 루프의 인덱싱 오버헤드가 줄어들고 메모리 접근이 연속적이기 때문입니다.")
+
 def main():
     print("\n\n\n=== Mini NPU Simulator ===")
     print("\n[모드 선택]")
     print("1. 사용자 입력 (3x3)")
     print("2. data.json 분석")
     print("3. 패턴 자동 생성 및 성능 테스트") # 추가    
+    print("4. [최적화] 1D vs 2D 성능 비교") # 추가
 
     choice = input("\n선택: ")
     
@@ -246,13 +312,13 @@ def main():
     # 모드 2는 항상 실행하거나 선택적으로 실행 가능 (요구사항에 따라 흐름 구성)
     # 여기서는 요구사항의 '실행 흐름'에 따라 순차적으로 진행할 수 있도록 구성합니다.
     elif choice == '2':
-        try:
-            with open('data.json', 'r') as f:
-                data = json.load(f)
-        except FileNotFoundError:
-            print("data.json 파일을 찾을 수 없습니다.")
+        # [수정된 부분] read.py의 함수를 호출합니다.
+        data = load_json_data('data.json')
+        
+        # 데이터 로드에 실패(None)했다면 종료
+        if data is None:
             return
-
+        
         pass_c, fail_c, fail_list, perf_list = run_mode_2(data)
         
         # 성능 분석 표 출력
@@ -282,6 +348,8 @@ def main():
         print("\n\n")
     elif choice == '3':
         run_mode_3() # 추가
+    elif choice == '4':
+            run_mode_4() # 호출
 
 if __name__ == "__main__":
     main()
